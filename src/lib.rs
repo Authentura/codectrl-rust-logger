@@ -82,7 +82,7 @@ pub struct Log<T: Message> {
     /// logger will not be able to provide enough information.
     ///
     /// [`log`]: Self::log
-    pub warnings: Vec<Warning>,
+    pub warnings: Vec<String>,
     #[serde(skip)]
     _t: PhantomData<T>,
 }
@@ -122,7 +122,8 @@ impl<T: Message + Debug> Log<T> {
         );
 
         #[cfg(not(debug_assertions))]
-        log.warnings.push(Warning::CompiledWithoutDebugInfo);
+        log.warnings
+            .push(Warning::CompiledWithoutDebugInfo.to_string());
 
         let surround = surround.unwrap_or(3);
         let host = host.unwrap_or("127.0.0.1");
