@@ -5,7 +5,7 @@
 fn test_backtrace() { test_backtrace_layer_2(); }
 
 fn test_backtrace_final_layer() {
-    let a = || crate::Log::log("Hello", Some(2), None);
+    let a = || crate::Log::log("Hello", Some(2), None, None);
     let _ = a();
 }
 

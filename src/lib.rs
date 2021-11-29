@@ -71,6 +71,7 @@ impl<T: Message + Debug> Log<T> {
     pub fn log(
         message: T,
         surround: Option<u32>,
+        host: Option<&str>,
         port: Option<&str>,
     ) -> Result<(), Box<dyn Error>> {
         let mut log = Self {
@@ -81,10 +82,12 @@ impl<T: Message + Debug> Log<T> {
             message: format!("{:#?}", &message),
             message_type: std::any::type_name::<T>().to_string(),
             address: String::new(),
+            warnings: Vec::new(),
             _t: PhantomData::<T>,
         };
 
         let surround = surround.unwrap_or(3);
+        let host = host.unwrap_or("127.0.0.1");
         let port = port.unwrap_or("3001");
 
         log.get_stack_trace();
@@ -106,7 +109,7 @@ impl<T: Message + Debug> Log<T> {
         let mut ret = Ok(());
 
         rt.block_on(async {
-            ret = Self::_log(&mut log, port).await;
+            ret = Self::_log(&mut log, host, port).await;
         });
 
         ret
@@ -117,10 +120,10 @@ impl<T: Message + Debug> Log<T> {
     //
     // TODO: Provide a direct wrapper so that async environments do not need to call
     // a non-async wrapper, just for that to call an async wrapper.
-    async fn _log(log: &mut Self, port: &str) -> Result<(), Box<dyn Error>> {
+    async fn _log(log: &mut Self, host: &str, port: &str) -> Result<(), Box<dyn Error>> {
         let socket = TcpSocket::new_v4()?;
         let mut stream = socket
-            .connect(format!("127.0.0.1:{}", port).parse().unwrap())
+            .connect(format!("{}:{}", host, port).parse().unwrap())
             .await?;
 
         let data = serde_cbor::to_vec(log)?;
