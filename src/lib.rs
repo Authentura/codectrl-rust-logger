@@ -201,6 +201,7 @@ impl<T: Message + Debug> Log<T> {
                     if !name.ends_with("Log<T>::log")
                         && !name.ends_with("Log<T>::get_stack_trace")
                         && !file_path.starts_with("/rustc/")
+                        && file_path.contains(".rs")
                     {
                         let code = Self::get_code(&file_path, line_number);
 
