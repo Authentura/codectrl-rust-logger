@@ -1,10 +1,11 @@
 use serde::{
     de::{self, Error, Visitor},
+    ser::SerializeMap,
     Deserialize, Serialize,
 };
 use std::collections::BTreeMap;
 
-#[derive(Eq, PartialEq, Clone, Serialize, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct CodeSnippet(pub BTreeMap<u32, String>);
 
 impl CodeSnippet {
@@ -57,5 +58,20 @@ impl<'de> Deserialize<'de> for CodeSnippet {
         D: serde::Deserializer<'de>,
     {
         deserializer.deserialize_map(CodeSnippetVisitor)
+    }
+}
+
+impl Serialize for CodeSnippet {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut map = serializer.serialize_map(Some(self.0.len()))?;
+
+        for (k, v) in &self.0 {
+            map.serialize_entry(&k.to_string(), v)?;
+        }
+
+        map.end()
     }
 }

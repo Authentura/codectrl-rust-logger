@@ -1,21 +1,18 @@
-mod code_snippet;
+pub mod code_snippet;
 mod tests;
 
 #[cfg(feature = "full")]
 use backtrace::Backtrace;
 use code_snippet::CodeSnippet;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, VecDeque},
-    fmt::Debug,
-    marker::PhantomData,
-};
 #[cfg(feature = "full")]
 use std::{
+    collections::BTreeMap,
     error::Error,
     fs::File,
     io::{prelude::*, BufReader},
 };
+use std::{collections::VecDeque, fmt::Debug, marker::PhantomData};
 #[cfg(feature = "full")]
 use tokio::{io::AsyncWriteExt, net::TcpSocket, runtime::Runtime};
 
@@ -59,9 +56,11 @@ pub struct Log<T: Message> {
     ///
     /// [`log`]: Self::log
     pub line_number: u32,
-    /// The code snippet around the line where the [`log`] function was called.
+    /// The [`code snippet`] around the line where the [`log`] function was
+    /// called.
     ///
     /// [`log`]: Self::log
+    /// [`code snippet`]: CodeSnippet
     pub code_snippet: CodeSnippet,
     /// The message that the [`log`] function supplied.
     ///
