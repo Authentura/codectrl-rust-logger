@@ -1,7 +1,9 @@
+mod code_snippet;
 mod tests;
 
 #[cfg(feature = "full")]
 use backtrace::Backtrace;
+use code_snippet::CodeSnippet;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -60,7 +62,7 @@ pub struct Log<T: Message> {
     /// The code snippet around the line where the [`log`] function was called.
     ///
     /// [`log`]: Self::log
-    pub code_snippet: BTreeMap<String, String>,
+    pub code_snippet: CodeSnippet,
     /// The message that the [`log`] function supplied.
     ///
     /// [`log`]: Self::log
@@ -104,7 +106,7 @@ impl<T: Message + Debug> Log<T> {
             stack: VecDeque::new(),
             line_number: 0,
             file_name: String::new(),
-            code_snippet: BTreeMap::new(),
+            code_snippet: CodeSnippet::new(),
             message: format!("{:#?}", &message),
             message_type: std::any::type_name::<T>().to_string(),
             address: String::new(),
@@ -235,11 +237,7 @@ impl<T: Message + Debug> Log<T> {
         code
     }
 
-    fn get_code_snippet(
-        file_path: &str,
-        line_number: u32,
-        surround: u32,
-    ) -> BTreeMap<String, String> {
+    fn get_code_snippet(file_path: &str, line_number: u32, surround: u32) -> CodeSnippet {
         let file = File::open(file_path).unwrap_or_else(|_| {
             panic!("Unexpected error: could not open file: {}", file_path)
         });
@@ -260,9 +258,11 @@ impl<T: Message + Debug> Log<T> {
             end = lines.len() as u32 - 1;
         }
 
-        lines
-            .range(offset..=end)
-            .map(|(key, value)| (format!("{}", key), value.clone()))
-            .collect()
+        CodeSnippet(
+            lines
+                .range(offset..=end)
+                .map(|(key, value)| (*key, value.clone()))
+                .collect(),
+        )
     }
 }
