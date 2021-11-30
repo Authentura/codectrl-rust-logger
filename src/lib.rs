@@ -60,7 +60,7 @@ pub struct Log<T: Message> {
     /// The code snippet around the line where the [`log`] function was called.
     ///
     /// [`log`]: Self::log
-    pub code_snippet: BTreeMap<u32, String>,
+    pub code_snippet: BTreeMap<String, String>,
     /// The message that the [`log`] function supplied.
     ///
     /// [`log`]: Self::log
