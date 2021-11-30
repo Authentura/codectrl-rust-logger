@@ -239,7 +239,7 @@ impl<T: Message + Debug> Log<T> {
         file_path: &str,
         line_number: u32,
         surround: u32,
-    ) -> BTreeMap<u32, String> {
+    ) -> BTreeMap<String, String> {
         let file = File::open(file_path).unwrap_or_else(|_| {
             panic!("Unexpected error: could not open file: {}", file_path)
         });
@@ -262,7 +262,7 @@ impl<T: Message + Debug> Log<T> {
 
         lines
             .range(offset..=end)
-            .map(|(key, value)| (*key, value.clone()))
+            .map(|(key, value)| (format!("{}", key), value.clone()))
             .collect()
     }
 }
