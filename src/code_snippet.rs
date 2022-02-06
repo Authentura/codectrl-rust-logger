@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 pub struct CodeSnippet(pub BTreeMap<u32, String>);
 
 impl CodeSnippet {
-    pub fn new() -> Self { Self { 0: BTreeMap::new() } }
+    pub fn new() -> Self { Self(BTreeMap::new()) }
 }
 
 impl Default for CodeSnippet {
