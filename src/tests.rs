@@ -2,13 +2,37 @@
 #![cfg(feature = "full")]
 
 #[test]
-fn test_backtrace() { test_backtrace_layer_2(); }
+fn log() { log_layer_2(); }
 
-fn test_backtrace_final_layer() {
+fn log_layer_2() { log_layer_3(); }
+
+fn log_layer_3() { log_final_layer(); }
+
+fn log_final_layer() {
     let a = || crate::Log::log("Hello", Some(2), None, None);
     let _ = a();
 }
 
-fn test_backtrace_layer_2() { test_backtrace_layer_3(); }
+#[test]
+fn log_if_gen_random() -> bool {
+    use rand::prelude::*;
 
-fn test_backtrace_layer_3() { test_backtrace_final_layer(); }
+    rand::random()
+}
+
+fn log_if() { log_if_layer_2() }
+
+fn log_if_layer_2() { log_if_layer_3() }
+
+fn log_if_layer_3() { log_if_final_layer() }
+
+fn log_if_final_layer() {
+    crate::Log::log_if(
+        log_if_gen_random(),
+        "Hello, conditional",
+        Some(2),
+        None,
+        None,
+    );
+    // let mut rng =
+}

@@ -1,5 +1,4 @@
 pub mod code_snippet;
-mod tests;
 
 #[cfg(feature = "full")]
 use backtrace::Backtrace;
@@ -153,6 +152,21 @@ impl<T: Message + Debug> Log<T> {
         });
 
         ret
+    }
+
+    pub fn log_if(
+        condition: Box<dyn FnOnce() -> bool>,
+        message: T,
+        surround: Option<u32>,
+        host: Option<&str>,
+        port: Option<&str>,
+    ) -> Result<bool, Box<dyn Error>> {
+        if condition() {
+            Self::log(message, surround, host, port)?;
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     // We have a non-async wrapper over _log so that we can log from non-async
