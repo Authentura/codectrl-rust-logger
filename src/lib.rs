@@ -157,6 +157,8 @@ impl<T: Message + Debug> Log<T> {
         ret
     }
 
+    /// A log function that takes a closure and only logs out if that closure returns `true`.
+    /// Essentially a conditional wrapper over [`log`].
     pub fn log_if(
         condition: fn() -> bool,
         message: T,
