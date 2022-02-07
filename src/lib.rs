@@ -157,10 +157,28 @@ impl<T: Message + Debug> Log<T> {
         ret
     }
 
-    /// A log function that takes a closure and only logs out if that closure returns `true`.
-    /// Essentially a conditional wrapper over [`log`].
+    /// A log function that takes a closure and only logs out if that function returns `true`.
+    /// Essentially a conditional wrapper over [`Self::log`]. See [`Self::boxed_log_if`] 
+    /// for a variation that allows for closures that take can take from values in scope.
     pub fn log_if(
         condition: fn() -> bool,
+        message: T,
+        surround: Option<u32>,
+        host: Option<&str>,
+        port: Option<&str>,
+    ) -> Result<bool, Box<dyn Error>> {
+        if condition() {
+            Self::log(message, surround, host, port)?;
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
+    /// A log function, similar to [`Self::log_if`] that takes a boxed closure or 
+    /// function that can take in parameters from the outer scope.
+    pub fn boxed_log_if(
+        condition: Box<dyn FnOnce() -> bool>,
         message: T,
         surround: Option<u32>,
         host: Option<&str>,
@@ -218,7 +236,9 @@ impl<T: Message + Debug> Log<T> {
                     let file_path: String =
                         file_name.as_os_str().to_str().unwrap().to_string();
 
-                    if !(name.ends_with("Log<T>::log") || name.ends_with("Log<T>::log_if"))
+                    if !(name.ends_with("Log<T>::log")
+                        || name.ends_with("Log<T>::log_if")
+                        || name.ends_with("Log<T>::boxed_log_if"))
                         && !name.ends_with("Log<T>::get_stack_trace")
                         && !file_path.starts_with("/rustc/")
                         && file_path.contains(".rs")

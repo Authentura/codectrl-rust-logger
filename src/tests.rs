@@ -39,6 +39,16 @@ fn log_if_layer_3() {
 }
 
 fn log_if_final_layer() {
+    let some_variable = true;
+
     let _ = crate::Log::log_if(log_if_gen_random, "Hello, conditional", Some(2), None, None);
     let _ = crate::Log::log_if(|| true, "Hello, conditional 2", Some(2), None, None);
+
+    let _ = crate::Log::boxed_log_if(
+        Box::new(move || some_variable),
+        "Hello, conditional 3",
+        Some(2),
+        None,
+        None,
+    );
 }
