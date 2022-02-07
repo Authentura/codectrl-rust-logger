@@ -1,5 +1,8 @@
 pub mod code_snippet;
 
+#[cfg(test)]
+mod tests;
+
 #[cfg(feature = "full")]
 use backtrace::Backtrace;
 use code_snippet::CodeSnippet;
@@ -155,7 +158,7 @@ impl<T: Message + Debug> Log<T> {
     }
 
     pub fn log_if(
-        condition: Box<dyn FnOnce() -> bool>,
+        condition: fn() -> bool,
         message: T,
         surround: Option<u32>,
         host: Option<&str>,
@@ -213,7 +216,7 @@ impl<T: Message + Debug> Log<T> {
                     let file_path: String =
                         file_name.as_os_str().to_str().unwrap().to_string();
 
-                    if !name.ends_with("Log<T>::log")
+                    if !(name.ends_with("Log<T>::log") || name.ends_with("Log<T>::log_if"))
                         && !name.ends_with("Log<T>::get_stack_trace")
                         && !file_path.starts_with("/rustc/")
                         && file_path.contains(".rs")
