@@ -14,7 +14,7 @@ use std::{
     fs::File,
     io::{prelude::*, BufReader},
 };
-use std::{collections::VecDeque, fmt::Debug, marker::PhantomData};
+use std::{collections::VecDeque, env, fmt::Debug, fs, marker::PhantomData};
 #[cfg(feature = "full")]
 use tokio::{io::AsyncWriteExt, net::TcpSocket, runtime::Runtime};
 
@@ -139,12 +139,7 @@ impl<T: Message + Debug> Log<T> {
                 Self::get_code_snippet(&last.file_path, last.line_number, surround);
             log.line_number = last.line_number;
 
-            log.file_name = last
-                .file_path
-                .split('/')
-                .skip_while(|s| *s != "src")
-                .collect::<Vec<_>>()
-                .join("/");
+            log.file_name = last.file_path.clone();
         }
 
         let rt = Runtime::new()?;
