@@ -152,9 +152,10 @@ impl<T: Message + Debug> Log<T> {
         ret
     }
 
-    /// A log function that takes a closure and only logs out if that function returns `true`.
-    /// Essentially a conditional wrapper over [`Self::log`]. See [`Self::boxed_log_if`] 
-    /// for a variation that allows for closures that take can take from values in scope.
+    /// A log function that takes a closure and only logs out if that function
+    /// returns `true`. Essentially a conditional wrapper over
+    /// [`Self::log`]. See [`Self::boxed_log_if`] for a variation that
+    /// allows for closures that take can take from values in scope.
     pub fn log_if(
         condition: fn() -> bool,
         message: T,
@@ -170,8 +171,8 @@ impl<T: Message + Debug> Log<T> {
         Ok(false)
     }
 
-    /// A log function, similar to [`Self::log_if`] that takes a boxed closure or 
-    /// function that can take in parameters from the outer scope.
+    /// A log function, similar to [`Self::log_if`] that takes a boxed closure
+    /// or function that can take in parameters from the outer scope.
     pub fn boxed_log_if(
         condition: Box<dyn FnOnce() -> bool>,
         message: T,
