@@ -229,8 +229,12 @@ impl<T: Message + Debug> Log<T> {
                 if let (Some(file_name), Some(line_number), Some(column_number)) =
                     (symbol.filename(), symbol.lineno(), symbol.colno())
                 {
-                    let file_path: String =
-                        file_name.as_os_str().to_str().unwrap().to_string();
+                    let file_path: String = if let Ok(path) = fs::canonicalize(file_name)
+                    {
+                        path.as_os_str().to_str().unwrap().to_string()
+                    } else {
+                        file_name.as_os_str().to_str().unwrap().to_string()
+                    };
 
                     if !(name.ends_with("Log<T>::log")
                         || name.ends_with("Log<T>::log_if")
