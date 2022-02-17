@@ -188,6 +188,26 @@ impl<T: Message + Debug> Log<T> {
         Ok(false)
     }
 
+    /// A log function, similar to [`Self::log_if`] and [`Self::boxed_log_if`],
+    /// that only takes effect if the environment variable `CODECTRL_DEBUG`
+    /// is present or not.
+    pub fn log_when_env(
+        message: T,
+        surround: Option<u32>,
+        host: Option<&str>,
+        port: Option<&str>,
+    ) -> Result<bool, Box<dyn Error>> {
+        if let Some(_) = env::var("CODECTRL_DEBUG").ok() {
+            Self::log(message, surround, host, port)?;
+            Ok(true)
+        } else {
+            #[cfg(debug_assertions)]
+            println!("log_when_env not called: envvar CODECTRL_DEBUG not present");
+
+            Ok(false)
+        }
+    }
+
     // We have a non-async wrapper over _log so that we can log from non-async
     // scopes.
     //
@@ -238,7 +258,8 @@ impl<T: Message + Debug> Log<T> {
 
                     if !(name.ends_with("Log<T>::log")
                         || name.ends_with("Log<T>::log_if")
-                        || name.ends_with("Log<T>::boxed_log_if"))
+                        || name.ends_with("Log<T>::boxed_log_if")
+                        || name.ends_with("Log<T>::log_when_env"))
                         && !name.ends_with("Log<T>::get_stack_trace")
                         && !file_path.starts_with("/rustc/")
                         && file_path.contains(".rs")
