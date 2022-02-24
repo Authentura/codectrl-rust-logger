@@ -14,7 +14,7 @@ use std::{
     fs::File,
     io::{prelude::*, BufReader},
 };
-use std::{collections::VecDeque, fmt::Debug, marker::PhantomData};
+use std::{collections::VecDeque, env, fmt::Debug, fs, marker::PhantomData};
 #[cfg(feature = "full")]
 use tokio::{io::AsyncWriteExt, net::TcpSocket, runtime::Runtime};
 
@@ -143,12 +143,7 @@ impl<T: Message + Debug> Log<T> {
                 Self::get_code_snippet(&last.file_path, last.line_number, surround);
             log.line_number = last.line_number;
 
-            log.file_name = last
-                .file_path
-                .split('/')
-                .skip_while(|s| *s != "src")
-                .collect::<Vec<_>>()
-                .join("/");
+            log.file_name = last.file_path.clone();
         }
 
         let rt = Runtime::new()?;
@@ -161,9 +156,10 @@ impl<T: Message + Debug> Log<T> {
         ret
     }
 
-    /// A log function that takes a closure and only logs out if that function returns `true`.
-    /// Essentially a conditional wrapper over [`Self::log`]. See [`Self::boxed_log_if`] 
-    /// for a variation that allows for closures that take can take from values in scope.
+    /// A log function that takes a closure and only logs out if that function
+    /// returns `true`. Essentially a conditional wrapper over
+    /// [`Self::log`]. See [`Self::boxed_log_if`] for a variation that
+    /// allows for closures that take can take from values in scope.
     pub fn log_if(
         condition: fn() -> bool,
         message: T,
@@ -179,8 +175,8 @@ impl<T: Message + Debug> Log<T> {
         Ok(false)
     }
 
-    /// A log function, similar to [`Self::log_if`] that takes a boxed closure or 
-    /// function that can take in parameters from the outer scope.
+    /// A log function, similar to [`Self::log_if`] that takes a boxed closure
+    /// or function that can take in parameters from the outer scope.
     pub fn boxed_log_if(
         condition: Box<dyn FnOnce() -> bool>,
         message: T,
@@ -194,6 +190,26 @@ impl<T: Message + Debug> Log<T> {
         }
 
         Ok(false)
+    }
+
+    /// A log function, similar to [`Self::log_if`] and [`Self::boxed_log_if`],
+    /// that only takes effect if the environment variable `CODECTRL_DEBUG`
+    /// is present or not.
+    pub fn log_when_env(
+        message: T,
+        surround: Option<u32>,
+        host: Option<&str>,
+        port: Option<&str>,
+    ) -> Result<bool, Box<dyn Error>> {
+        if let Some(_) = env::var("CODECTRL_DEBUG").ok() {
+            Self::log(message, surround, host, port)?;
+            Ok(true)
+        } else {
+            #[cfg(debug_assertions)]
+            println!("log_when_env not called: envvar CODECTRL_DEBUG not present");
+
+            Ok(false)
+        }
     }
 
     // We have a non-async wrapper over _log so that we can log from non-async
@@ -237,12 +253,17 @@ impl<T: Message + Debug> Log<T> {
                 if let (Some(file_name), Some(line_number), Some(column_number)) =
                     (symbol.filename(), symbol.lineno(), symbol.colno())
                 {
-                    let file_path: String =
-                        file_name.as_os_str().to_str().unwrap().to_string();
+                    let file_path: String = if let Ok(path) = fs::canonicalize(file_name)
+                    {
+                        path.as_os_str().to_str().unwrap().to_string()
+                    } else {
+                        file_name.as_os_str().to_str().unwrap().to_string()
+                    };
 
                     if !(name.ends_with("Log<T>::log")
                         || name.ends_with("Log<T>::log_if")
-                        || name.ends_with("Log<T>::boxed_log_if"))
+                        || name.ends_with("Log<T>::boxed_log_if")
+                        || name.ends_with("Log<T>::log_when_env"))
                         && !name.ends_with("Log<T>::get_stack_trace")
                         && !file_path.starts_with("/rustc/")
                         && file_path.contains(".rs")
