@@ -115,7 +115,7 @@ impl<T: Message + Debug> Log<T> {
             message_type: std::any::type_name::<T>().to_string(),
             address: String::new(),
             warnings: Vec::new(),
-            language: "rust".into(),
+            language: "Rust".into(),
             _t: PhantomData::<T>,
         };
 
