@@ -5,6 +5,7 @@ mod tests;
 
 #[cfg(feature = "full")]
 use backtrace::Backtrace;
+use ciborium::ser as ciborium;
 use code_snippet::CodeSnippet;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "full")]
@@ -223,7 +224,8 @@ impl<T: Message + Debug> Log<T> {
             .connect(format!("{}:{}", host, port).parse().unwrap())
             .await?;
 
-        let data = serde_cbor::to_vec(log)?;
+        let mut data = vec![];
+        ciborium::into_writer(log, &mut data)?;
 
         stream.write_all(&data).await?;
 
