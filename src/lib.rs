@@ -196,7 +196,7 @@ impl<T: Message + Debug> Log<T> {
     /// A log function, similar to [`Self::log_if`] and [`Self::boxed_log_if`],
     /// that only takes effect if the environment variable `CODECTRL_DEBUG`
     /// is present or not.
-    pub fn log_when_env(
+    pub fn log_if_env(
         message: T,
         surround: Option<u32>,
         host: Option<&str>,
@@ -207,7 +207,7 @@ impl<T: Message + Debug> Log<T> {
             Ok(true)
         } else {
             #[cfg(debug_assertions)]
-            println!("log_when_env not called: envvar CODECTRL_DEBUG not present");
+            println!("log_if_env not called: envvar CODECTRL_DEBUG not present");
 
             Ok(false)
         }
@@ -265,7 +265,7 @@ impl<T: Message + Debug> Log<T> {
                     if !(name.ends_with("Log<T>::log")
                         || name.ends_with("Log<T>::log_if")
                         || name.ends_with("Log<T>::boxed_log_if")
-                        || name.ends_with("Log<T>::log_when_env"))
+                        || name.ends_with("Log<T>::log_if_env"))
                         && !name.ends_with("Log<T>::get_stack_trace")
                         && !file_path.starts_with("/rustc/")
                         && file_path.contains(".rs")

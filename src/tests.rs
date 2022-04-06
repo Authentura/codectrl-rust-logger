@@ -8,7 +8,7 @@ fn log() { log_layer_2(); }
 fn log_if() { log_if_layer_2() }
 
 #[test]
-fn log_when_env() { log_when_env_layer_2() }
+fn log_if_env() { log_if_env_layer_2() }
 
 // normal log
 fn log_layer_2() { log_layer_3(); }
@@ -43,11 +43,11 @@ fn log_if_final_layer() {
     );
 }
 
-// log_when_env
-fn log_when_env_layer_2() { log_when_env_layer_3() }
+// log_if_env
+fn log_if_env_layer_2() { log_if_env_layer_3() }
 
-fn log_when_env_layer_3() { log_when_env_final_layer() }
+fn log_if_env_layer_3() { log_if_env_final_layer() }
 
-fn log_when_env_final_layer() {
-    let _ = crate::Log::log_when_env("Hello, world env", Some(2), None, None);
+fn log_if_env_final_layer() {
+    let _ = crate::Log::log_if_env("Hello, world env", Some(2), None, None);
 }
