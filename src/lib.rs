@@ -6,6 +6,7 @@ use codectrl_protobuf_bindings::{
     data::{BacktraceData, Log},
     logs_service::{LoggerClient, RequestResult, RequestStatus},
 };
+use futures_util::stream;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -34,14 +35,231 @@ impl ToString for Warning {
     }
 }
 
+fn create_log<T: Debug>(message: T, surround: Option<u32>, offset: Option<u32>) -> Log {
+    let offset = offset.unwrap_or_default();
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct Logger {
-    log: Log,
-    log_batch: VecDeque<Log>,
+    let mut log = Log {
+        uuid: "".to_string(),
+        stack: Vec::new(),
+        line_number: 0,
+        file_name: String::new(),
+        code_snippet: BTreeMap::new(),
+        message: format!("{:#?}", &message),
+        message_type: std::any::type_name::<T>().to_string(),
+        address: String::new(),
+        warnings: Vec::new(),
+        language: "Rust".into(),
+    };
+
+    #[cfg(not(debug_assertions))]
+    eprintln!(
+        "Unfortunately, using this function without debug_assertions enabled will \
+         produce limited information. The stack trace, file path and line number will \
+         be missing from the final message that is sent to the server. Please consider \
+         guarding this function using #[cfg(debug_assertions)] so that this message \
+         does not re-appear."
+    );
+
+    #[cfg(not(debug_assertions))]
+    log.warnings
+        .push(Warning::CompiledWithoutDebugInfo.to_string());
+
+    let surround = surround.unwrap_or(3);
+
+    Logger::get_stack_trace(&mut log);
+
+    if let Some(last) = log.stack.last() {
+        log.line_number = last.line_number + offset;
+        log.code_snippet =
+            Logger::get_code_snippet(&last.file_path, log.line_number, surround);
+
+        log.file_name = last.file_path.clone();
+    }
+
+    log
 }
 
-impl Logger {
+pub struct LogBatch<'a> {
+    logger: Logger<'a>,
+    log_batch: VecDeque<Log>,
+    tokio_runtime: Option<&'a Handle>,
+    host: &'static str,
+    port: &'static str,
+    surround: u32,
+}
+
+impl<'a> LogBatch<'a> {
+    fn new(logger: Logger<'a>) -> Self {
+        Self {
+            logger,
+            log_batch: VecDeque::new(),
+            tokio_runtime: None,
+            host: "127.0.0.1",
+            port: "3002",
+            surround: 3,
+        }
+    }
+
+    pub fn host(mut self, host: &'static str) -> Self {
+        self.host = host;
+        self
+    }
+
+    pub fn port(mut self, port: &'static str) -> Self {
+        self.port = port;
+        self
+    }
+
+    pub fn tokio_runtime(mut self, rt: &'a Handle) -> Self {
+        self.tokio_runtime = Some(rt);
+        self
+    }
+
+    pub fn surround(mut self, surround: u32) -> Self {
+        self.surround = surround;
+        self
+    }
+
+    pub fn add_log<T: Debug>(mut self, message: T, surround: Option<u32>) -> Self {
+        let surround = Some(surround.unwrap_or(self.surround));
+
+        self.log_batch.push_back(create_log(
+            message,
+            surround,
+            Some(self.log_batch.len() as u32 + 1),
+        ));
+
+        self
+    }
+
+    pub fn add_log_if<T: Debug>(
+        mut self,
+        condition: fn() -> bool,
+        message: T,
+        surround: Option<u32>,
+    ) -> Self {
+        let surround = Some(surround.unwrap_or(self.surround));
+
+        if condition() {
+            self.log_batch.push_back(create_log(
+                message,
+                surround,
+                Some(self.log_batch.len() as u32 + 1),
+            ));
+        }
+
+        self
+    }
+
+    pub fn add_boxed_log_if<T: Debug>(
+        mut self,
+        condition: Box<dyn FnOnce() -> bool>,
+        message: T,
+        surround: Option<u32>,
+    ) -> Self {
+        let surround = Some(surround.unwrap_or(self.surround));
+
+        if condition() {
+            self.log_batch.push_back(create_log(
+                message,
+                surround,
+                Some(self.log_batch.len() as u32 + 1),
+            ));
+        }
+
+        self
+    }
+
+    pub fn add_log_when_env<T: Debug>(
+        mut self,
+        message: T,
+        surround: Option<u32>,
+    ) -> Self {
+        let surround = Some(surround.unwrap_or(self.surround));
+
+        if env::var("CODECTRL_DEBUG").ok().is_some() {
+            self.log_batch.push_back(create_log(
+                message,
+                surround,
+                Some(self.log_batch.len() as u32 + 1),
+            ));
+        } else {
+            #[cfg(debug_assertions)]
+            println!("add_log_when_env not called: envvar CODECTRL_DEBUG not present");
+        }
+
+        self
+    }
+
+    pub fn build(mut self) -> Logger<'a> {
+        self.logger = Logger {
+            log_batch: self.log_batch,
+            batch_host: self.host,
+            batch_port: self.port,
+            batch_tokio_runtime: self.tokio_runtime,
+        };
+
+        self.logger
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Logger<'a> {
+    log_batch: VecDeque<Log>,
+    batch_host: &'static str,
+    batch_port: &'static str,
+    batch_tokio_runtime: Option<&'a Handle>,
+}
+
+impl<'a> Logger<'a> {
+    pub fn start_batch() -> LogBatch<'a> { LogBatch::new(Self::default()) }
+
+    pub fn send_batch(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.log_batch.is_empty() {
+            return Err("Can't send batch: Log batch is empty".into());
+        }
+
+        let mut ret = Ok(());
+
+        async fn send_batch(
+            host: &str,
+            port: &str,
+            logs: &mut VecDeque<Log>,
+        ) -> Result<(), Box<dyn Error>> {
+            let mut log_client =
+                LoggerClient::connect(format!("http://{host}:{port}")).await?;
+
+            let request = Request::new(stream::iter(logs.clone()));
+            let response = log_client.send_logs(request).await?;
+
+            match response.into_inner() {
+                RequestResult { status, .. }
+                    if status == RequestStatus::Confirmed.into() =>
+                    Ok(()),
+                RequestResult { message, status }
+                    if status == RequestStatus::Error.into() =>
+                    Err(message.into()),
+                RequestResult { .. } => unreachable!(),
+            }
+        }
+
+        if let Some(handle) = self.batch_tokio_runtime {
+            handle.block_on(async {
+                ret = send_batch(self.batch_host, self.batch_port, &mut self.log_batch)
+                    .await;
+            });
+        } else {
+            let rt = Runtime::new()?;
+
+            rt.block_on(async {
+                ret = send_batch(self.batch_host, self.batch_port, &mut self.log_batch)
+                    .await;
+            })
+        }
+
+        Ok(())
+    }
+
     /// The main log function that is called from Rust code.
     ///
     /// This function will print a warning to stderr if this crate is compiled
@@ -57,60 +275,22 @@ impl Logger {
         port: Option<&str>,
         tokio_runtime: Option<&Handle>,
     ) -> Result<(), Box<dyn Error>> {
-        let mut logger = Self {
-            log: Log {
-                uuid: "".to_string(),
-                stack: Vec::new(),
-                line_number: 0,
-                file_name: String::new(),
-                code_snippet: BTreeMap::new(),
-                message: format!("{:#?}", &message),
-                message_type: std::any::type_name::<T>().to_string(),
-                address: String::new(),
-                warnings: Vec::new(),
-                language: "Rust".into(),
-            },
-            log_batch: VecDeque::default(),
-        };
-
-        #[cfg(not(debug_assertions))]
-        eprintln!(
-            "Unfortunately, using this function without debug_assertions enabled will \
-             produce limited information. The stack trace, file path and line number \
-             will be missing from the final message that is sent to the server. Please \
-             consider guarding this function using #[cfg(debug_assertions)] so that \
-             this message does not re-appear."
-        );
-
-        #[cfg(not(debug_assertions))]
-        log.warnings
-            .push(Warning::CompiledWithoutDebugInfo.to_string());
-
-        let surround = surround.unwrap_or(3);
         let host = host.unwrap_or("127.0.0.1");
         let port = port.unwrap_or("3002");
 
-        logger.get_stack_trace();
-
-        if let Some(last) = logger.log.stack.last() {
-            logger.log.code_snippet =
-                Self::get_code_snippet(&last.file_path, last.line_number, surround);
-            logger.log.line_number = last.line_number;
-
-            logger.log.file_name = last.file_path.clone();
-        }
+        let mut log = create_log(message, surround, None);
 
         let mut ret = Ok(());
 
         if let Some(handle) = tokio_runtime {
             handle.block_on(async {
-                ret = Self::_log(&mut logger, host, port).await;
+                ret = Self::_log(&mut log, host, port).await;
             });
         } else {
             let rt = Runtime::new()?;
 
             rt.block_on(async {
-                ret = Self::_log(&mut logger, host, port).await;
+                ret = Self::_log(&mut log, host, port).await;
             })
         }
 
@@ -190,11 +370,11 @@ impl Logger {
     //
     // TODO: Provide a direct wrapper so that async environments do not need to call
     // a non-async wrapper, just for that to call an async wrapper.
-    async fn _log(&mut self, host: &str, port: &str) -> Result<(), Box<dyn Error>> {
+    async fn _log(log: &mut Log, host: &str, port: &str) -> Result<(), Box<dyn Error>> {
         let mut log_client =
             LoggerClient::connect(format!("http://{host}:{port}")).await?;
 
-        let request = Request::new(self.log.clone());
+        let request = Request::new(log.clone());
         let response = log_client.send_log(request).await?;
 
         match response.into_inner() {
@@ -207,7 +387,7 @@ impl Logger {
         }
     }
 
-    fn get_stack_trace(&mut self) {
+    fn get_stack_trace(log: &mut Log) {
         let backtrace = Backtrace::new();
 
         for frame in backtrace.frames() {
@@ -237,17 +417,15 @@ impl Logger {
                         file_name.as_os_str().to_str().unwrap().to_string()
                     };
 
-                    if !(name.ends_with("Logger::log")
-                        || name.ends_with("Logger::log_if")
-                        || name.ends_with("Logger::boxed_log_if")
-                        || name.ends_with("Logger::log_when_env"))
-                        && !name.ends_with("Logger::get_stack_trace")
-                        && !file_path.starts_with("/rustc/")
+                    if !(name.contains("Logger::")
+                        || name.contains("LogBatch::")
+                        || name.ends_with("create_log")
+                        || file_path.starts_with("/rustc/"))
                         && file_path.contains(".rs")
                     {
                         let code = Self::get_code(&file_path, line_number);
 
-                        self.log.stack.insert(
+                        log.stack.insert(
                             0,
                             BacktraceData {
                                 name,
