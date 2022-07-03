@@ -299,11 +299,7 @@ impl Logger {
             .map(|(n, line)| ((n + 1) as u32, line.unwrap()))
             .collect();
 
-        let mut end = line_number.saturating_add(surround);
-
-        if end > lines.len() as u32 - 1 {
-            end = lines.len() as u32 - 1;
-        }
+        let end = line_number.saturating_add(surround);
 
         lines
             .range(offset..=end)
