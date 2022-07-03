@@ -1,21 +1,18 @@
 [package]
 name = "codectrl_logger"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-backtrace = { version = "0.3", optional = true }
+backtrace = "0.3"
 ciborium = "0.2"
+codectrl-protobuf-bindings = { git = "https://github.com/Authentura/codectrl-rust-protobuf-bindings", tag = "v0.7.2" }
 serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.13", optional = true, default-features = false, features = ["net", "rt-multi-thread", "io-util"] }
+tokio = { version = "1.18", features = ["net", "rt-multi-thread", "io-util"] }
+tonic = "0.7"
 
 [dev-dependencies]
 rand = "0.8"
-
-[features]
-default = ["full"]
-full = ["backtrace", "tokio"]
-types-only = []
