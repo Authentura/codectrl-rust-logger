@@ -257,7 +257,7 @@ impl<'a> Logger<'a> {
             })
         }
 
-        Ok(())
+        ret
     }
 
     /// The main log function that is called from Rust code.
