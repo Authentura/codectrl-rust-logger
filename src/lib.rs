@@ -7,18 +7,49 @@ use codectrl_protobuf_bindings::{
     logs_service::{LoggerClient, RequestResult, RequestStatus},
 };
 use futures_util::stream;
+use hashbag::HashBag;
 use serde::{Deserialize, Serialize};
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, VecDeque},
     env,
-    error::Error,
     fmt::Debug,
     fs,
     fs::File,
-    io::{prelude::*, BufReader},
+    io::{self, prelude::*, BufReader},
 };
 use tokio::runtime::{Handle, Runtime};
 use tonic::Request;
+
+#[derive(thiserror::Error, Debug)]
+pub enum LoggerError {
+    #[error("Tonic reported an error during transport: {0}")]
+    TonicTransportError(#[from] tonic::transport::Error),
+    #[error("Tonic request resulted in status code: {0}")]
+    TonicStatusCode(#[from] tonic::Status),
+    #[error("IO error occurred: {0}")]
+    IOError(#[from] io::Error),
+    #[error("gRPC server reported an error: status code {status_code}: {message} ")]
+    LogServerError {
+        message: String,
+        status_code: String,
+    },
+    #[error("This logger encountered an error: {0}")]
+    LoggerError(String),
+    #[error("An unknown error occured: {0}")]
+    Other(#[from] anyhow::Error),
+}
+
+impl From<RequestResult> for LoggerError {
+    fn from(res: RequestResult) -> Self {
+        Self::LogServerError {
+            message: res.message,
+            status_code: format!("{:?}", res.status),
+        }
+    }
+}
+
+type LoggerResult<T> = Result<T, LoggerError>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Warning {
@@ -35,8 +66,13 @@ impl ToString for Warning {
     }
 }
 
-fn create_log<T: Debug>(message: T, surround: Option<u32>, offset: Option<u32>) -> Log {
-    let offset = offset.unwrap_or_default();
+fn create_log<T: Debug>(
+    message: T,
+    surround: Option<u32>,
+    function_name: Option<&str>,
+    function_name_occurences: Option<&HashBag<&'static str>>,
+) -> Log {
+    let function_name = function_name.unwrap_or_default();
 
     let mut log = Log {
         uuid: "".to_string(),
@@ -69,9 +105,15 @@ fn create_log<T: Debug>(message: T, surround: Option<u32>, offset: Option<u32>) 
     Logger::get_stack_trace(&mut log);
 
     if let Some(last) = log.stack.last() {
-        log.line_number = last.line_number + offset;
-        log.code_snippet =
-            Logger::get_code_snippet(&last.file_path, log.line_number, surround);
+        log.line_number = last.line_number;
+
+        log.code_snippet = Logger::get_code_snippet(
+            &last.file_path,
+            &mut log.line_number,
+            surround,
+            function_name,
+            function_name_occurences,
+        );
 
         log.file_name = last.file_path.clone();
     }
@@ -86,6 +128,7 @@ pub struct LogBatch<'a> {
     host: &'static str,
     port: &'static str,
     surround: u32,
+    function_name_occurences: HashBag<&'static str>,
 }
 
 impl<'a> LogBatch<'a> {
@@ -97,6 +140,7 @@ impl<'a> LogBatch<'a> {
             host: "127.0.0.1",
             port: "3002",
             surround: 3,
+            function_name_occurences: HashBag::new(),
         }
     }
 
@@ -123,10 +167,13 @@ impl<'a> LogBatch<'a> {
     pub fn add_log<T: Debug>(mut self, message: T, surround: Option<u32>) -> Self {
         let surround = Some(surround.unwrap_or(self.surround));
 
+        self.function_name_occurences.insert("add_log");
+
         self.log_batch.push_back(create_log(
             message,
             surround,
-            Some(self.log_batch.len() as u32 + 1),
+            Some("add_log"),
+            Some(&self.function_name_occurences),
         ));
 
         self
@@ -140,11 +187,14 @@ impl<'a> LogBatch<'a> {
     ) -> Self {
         let surround = Some(surround.unwrap_or(self.surround));
 
+        self.function_name_occurences.insert("add_log_if");
+
         if condition() {
             self.log_batch.push_back(create_log(
                 message,
                 surround,
-                Some(self.log_batch.len() as u32 + 1),
+                Some("add_log_if"),
+                Some(&self.function_name_occurences),
             ));
         }
 
@@ -159,11 +209,14 @@ impl<'a> LogBatch<'a> {
     ) -> Self {
         let surround = Some(surround.unwrap_or(self.surround));
 
+        self.function_name_occurences.insert("add_boxed_log_if");
+
         if condition() {
             self.log_batch.push_back(create_log(
                 message,
                 surround,
-                Some(self.log_batch.len() as u32 + 1),
+                Some("add_boxed_log_if"),
+                Some(&self.function_name_occurences),
             ));
         }
 
@@ -177,11 +230,14 @@ impl<'a> LogBatch<'a> {
     ) -> Self {
         let surround = Some(surround.unwrap_or(self.surround));
 
+        self.function_name_occurences.insert("add_log_when_env");
+
         if env::var("CODECTRL_DEBUG").ok().is_some() {
             self.log_batch.push_back(create_log(
                 message,
                 surround,
-                Some(self.log_batch.len() as u32 + 1),
+                Some("add_log_when_env"),
+                Some(&self.function_name_occurences),
             ));
         } else {
             #[cfg(debug_assertions)]
@@ -214,9 +270,11 @@ pub struct Logger<'a> {
 impl<'a> Logger<'a> {
     pub fn start_batch() -> LogBatch<'a> { LogBatch::new(Self::default()) }
 
-    pub fn send_batch(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn send_batch(&mut self) -> LoggerResult<()> {
         if self.log_batch.is_empty() {
-            return Err("Can't send batch: Log batch is empty".into());
+            return Err(LoggerError::LoggerError(
+                "Can't send batch: Log batch is empty".to_string(),
+            ));
         }
 
         let mut ret = Ok(());
@@ -225,7 +283,7 @@ impl<'a> Logger<'a> {
             host: &str,
             port: &str,
             logs: &mut VecDeque<Log>,
-        ) -> Result<(), Box<dyn Error>> {
+        ) -> LoggerResult<()> {
             let mut log_client =
                 LoggerClient::connect(format!("http://{host}:{port}")).await?;
 
@@ -238,7 +296,7 @@ impl<'a> Logger<'a> {
                     Ok(()),
                 RequestResult { message, status }
                     if status == RequestStatus::Error.into() =>
-                    Err(message.into()),
+                    Err(RequestResult { message, status }.into()),
                 RequestResult { .. } => unreachable!(),
             }
         }
@@ -274,11 +332,11 @@ impl<'a> Logger<'a> {
         host: Option<&str>,
         port: Option<&str>,
         tokio_runtime: Option<&Handle>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> LoggerResult<()> {
         let host = host.unwrap_or("127.0.0.1");
         let port = port.unwrap_or("3002");
 
-        let mut log = create_log(message, surround, None);
+        let mut log = create_log(message, surround, None, None);
 
         let mut ret = Ok(());
 
@@ -311,7 +369,7 @@ impl<'a> Logger<'a> {
         host: Option<&str>,
         port: Option<&str>,
         tokio_runtime: Option<&Handle>,
-    ) -> Result<bool, Box<dyn Error>> {
+    ) -> LoggerResult<bool> {
         if condition() {
             Self::log(message, surround, host, port, tokio_runtime)?;
             return Ok(true);
@@ -332,7 +390,7 @@ impl<'a> Logger<'a> {
         host: Option<&str>,
         port: Option<&str>,
         tokio_runtime: Option<&Handle>,
-    ) -> Result<bool, Box<dyn Error>> {
+    ) -> LoggerResult<bool> {
         if condition() {
             Self::log(message, surround, host, port, tokio_runtime)?;
             return Ok(true);
@@ -353,7 +411,7 @@ impl<'a> Logger<'a> {
         host: Option<&str>,
         port: Option<&str>,
         tokio_runtime: Option<&Handle>,
-    ) -> Result<bool, Box<dyn Error>> {
+    ) -> LoggerResult<bool> {
         if env::var("CODECTRL_DEBUG").ok().is_some() {
             Self::log(message, surround, host, port, tokio_runtime)?;
             Ok(true)
@@ -370,7 +428,7 @@ impl<'a> Logger<'a> {
     //
     // TODO: Provide a direct wrapper so that async environments do not need to call
     // a non-async wrapper, just for that to call an async wrapper.
-    async fn _log(log: &mut Log, host: &str, port: &str) -> Result<(), Box<dyn Error>> {
+    async fn _log(log: &mut Log, host: &str, port: &str) -> LoggerResult<()> {
         let mut log_client =
             LoggerClient::connect(format!("http://{host}:{port}")).await?;
 
@@ -382,7 +440,7 @@ impl<'a> Logger<'a> {
                 Ok(()),
             RequestResult { message, status }
                 if status == RequestStatus::Error.into() =>
-                Err(message.into()),
+                Err(RequestResult { message, status }.into()),
             RequestResult { .. } => unreachable!(),
         }
     }
@@ -460,14 +518,15 @@ impl<'a> Logger<'a> {
 
     fn get_code_snippet(
         file_path: &str,
-        line_number: u32,
+        line_number: &mut u32,
         surround: u32,
+        function_name: &str,
+        function_name_occurences: Option<&HashBag<&'static str>>,
     ) -> BTreeMap<u32, String> {
         let file = File::open(file_path).unwrap_or_else(|_| {
             panic!("Unexpected error: could not open file: {}", file_path)
         });
 
-        let offset = line_number.saturating_sub(surround);
         let reader = BufReader::new(file);
 
         let lines: BTreeMap<u32, String> = reader
@@ -477,6 +536,47 @@ impl<'a> Logger<'a> {
             .map(|(n, line)| ((n + 1) as u32, line.unwrap()))
             .collect();
 
+        if let Some(function_name_occurences) = function_name_occurences {
+            if !function_name.is_empty() {
+                let offset = RefCell::new(1);
+                let occurences = function_name_occurences.contains(function_name);
+
+                let item = lines
+                    .iter()
+                    .skip(*line_number as usize)
+                    .filter(|(_, line)| {
+                        line.replace('.', "").split('(').next().unwrap().trim()
+                            == function_name
+                    })
+                    .map(|(line_number, line)| {
+                        (line_number, {
+                            let mut v = line.trim().split('.').collect::<Vec<_>>();
+
+                            if v[0].is_empty() {
+                                v.remove(0);
+                            }
+
+                            if v.len() > 1 {
+                                dbg!(*offset.borrow() + v.len());
+                                *offset.borrow_mut() += v.len();
+                            }
+                        })
+                    })
+                    .nth({
+                        if occurences > 1 {
+                            occurences.saturating_sub(*offset.borrow())
+                        } else {
+                            0
+                        }
+                    });
+
+                if let Some((i, _)) = item {
+                    *line_number = *i;
+                }
+            }
+        }
+
+        let offset = line_number.saturating_sub(surround);
         let end = line_number.saturating_add(surround);
 
         lines
