@@ -10,7 +10,7 @@ license = "MIT"
 anyhow = "1.0"
 backtrace = "0.3"
 ciborium = "0.2"
-codectrl-protobuf-bindings = { git = "https://github.com/Authentura/codectrl-rust-protobuf-bindings", tag = "v0.7.5" }
+codectrl-protobuf-bindings = { git = "https://github.com/Authentura/codectrl-rust-protobuf-bindings", tag = "v0.7.6" }
 futures-util = "0.3"
 hashbag = "0.1.9"
 serde = { version = "1.0", features = ["derive"] }
