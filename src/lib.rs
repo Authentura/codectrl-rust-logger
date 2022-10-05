@@ -345,9 +345,9 @@ impl<'a> Logger<'a> {
                 RequestResult { status, .. }
                     if status == RequestStatus::Confirmed.into() =>
                     Ok(()),
-                RequestResult { message, status }
+                RequestResult { message, status, auth_status }
                     if status == RequestStatus::Error.into() =>
-                    Err(RequestResult { message, status }.into()),
+                    Err(RequestResult { message, status, auth_status }.into()),
                 RequestResult { .. } => unreachable!(),
             }
         }
@@ -489,9 +489,9 @@ impl<'a> Logger<'a> {
         match response.into_inner() {
             RequestResult { status, .. } if status == RequestStatus::Confirmed.into() =>
                 Ok(()),
-            RequestResult { message, status }
+            RequestResult { message, status, auth_status }
                 if status == RequestStatus::Error.into() =>
-                Err(RequestResult { message, status }.into()),
+                Err(RequestResult { message, status, auth_status }.into()),
             RequestResult { .. } => unreachable!(),
         }
     }
