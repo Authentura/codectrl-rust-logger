@@ -529,6 +529,7 @@ impl<'a> Logger<'a> {
                     if !(name.contains("Logger::")
                         || name.contains("LogBatch::")
                         || name.ends_with("create_log")
+                        || file_path.contains(".cargo")
                         || file_path.starts_with("/rustc/"))
                         && file_path.contains(".rs")
                     {
