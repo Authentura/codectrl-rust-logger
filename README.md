@@ -28,7 +28,7 @@ interfaces to a gRPC server and connect to said gRPC servers.
 Here's a quick example of how to use this crate:
 
 ```rust
-use codectrl_logger::{Logger, LoggerError};
+use codectrl::{Logger, LoggerError};
 use tokio::runtime::Handle;
 
 fn main() -> anyhow::Result<()> {

@@ -1,6 +1,6 @@
 [package]
 name = "codectrl"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 authors = ["Samuel Boyden <s.boyden@authentura.com>"]
 license = "MIT"
