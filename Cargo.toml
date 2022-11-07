@@ -13,7 +13,7 @@ homepage = "https://codectrl.authentura.com"
 [dependencies.codectrl-protobuf-bindings]
 version = "0.8.2"
 git = "https://github.com/Authentura/codectrl-rust-protobuf-bindings"
-tag = "v0.8.2"
+rev = "943b27b6497b65f848fe9d90149704bc00ec4cec"
 
 [dependencies]
 anyhow = "1.0"
