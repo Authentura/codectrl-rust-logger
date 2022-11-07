@@ -207,17 +207,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "codectrl-protobuf-bindings"
-version = "0.8.0"
-source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?tag=v0.8.2#d4bbbc63d9b9a6d73c60126978c915bfacde6822"
-dependencies = [
- "native",
- "web",
-]
-
-[[package]]
-name = "codectrl_logger"
-version = "0.4.0"
+name = "codectrl"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -231,6 +222,15 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonic",
+]
+
+[[package]]
+name = "codectrl-protobuf-bindings"
+version = "0.8.0"
+source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?tag=v0.8.2#d4bbbc63d9b9a6d73c60126978c915bfacde6822"
+dependencies = [
+ "native",
+ "web",
 ]
 
 [[package]]
