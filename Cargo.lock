@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "codectrl"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -225,12 +225,38 @@ dependencies = [
 ]
 
 [[package]]
-name = "codectrl-protobuf-bindings"
-version = "0.8.0"
-source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?tag=v0.8.2#d4bbbc63d9b9a6d73c60126978c915bfacde6822"
+name = "codectrl-bindings-native"
+version = "0.0.0"
+source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?rev=943b27b6497b65f848fe9d90149704bc00ec4cec#943b27b6497b65f848fe9d90149704bc00ec4cec"
 dependencies = [
- "native",
- "web",
+ "prost",
+ "prost-build",
+ "serde",
+ "tonic",
+ "tonic-build",
+ "uuid",
+]
+
+[[package]]
+name = "codectrl-bindings-web"
+version = "0.0.0"
+source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?rev=943b27b6497b65f848fe9d90149704bc00ec4cec#943b27b6497b65f848fe9d90149704bc00ec4cec"
+dependencies = [
+ "prost",
+ "prost-build",
+ "serde",
+ "tonic",
+ "tonic-build",
+ "uuid",
+]
+
+[[package]]
+name = "codectrl-protobuf-bindings"
+version = "0.8.2"
+source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?rev=943b27b6497b65f848fe9d90149704bc00ec4cec#943b27b6497b65f848fe9d90149704bc00ec4cec"
+dependencies = [
+ "codectrl-bindings-native",
+ "codectrl-bindings-web",
 ]
 
 [[package]]
@@ -567,19 +593,6 @@ name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
-
-[[package]]
-name = "native"
-version = "0.0.0"
-source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?tag=v0.8.2#d4bbbc63d9b9a6d73c60126978c915bfacde6822"
-dependencies = [
- "prost",
- "prost-build",
- "serde",
- "tonic",
- "tonic-build",
- "uuid",
-]
 
 [[package]]
 name = "num-integer"
@@ -931,16 +944,16 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.19.2"
+version = "1.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c51a52ed6686dd62c320f9b89299e9dfb46f730c7a48e635c19f21d116cb1439"
+checksum = "664cf6576f16c0ad68184998f3c2d4be9903ede6b291a5b5cfc97d29e0057283"
 dependencies = [
+ "autocfg",
  "bytes",
  "libc",
  "memchr",
  "mio",
  "num_cpus",
- "once_cell",
  "pin-project-lite",
  "socket2",
  "tokio-macros",
@@ -1241,19 +1254,6 @@ name = "wasm-bindgen-shared"
 version = "0.2.83"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
-
-[[package]]
-name = "web"
-version = "0.0.0"
-source = "git+https://github.com/Authentura/codectrl-rust-protobuf-bindings?tag=v0.8.2#d4bbbc63d9b9a6d73c60126978c915bfacde6822"
-dependencies = [
- "prost",
- "prost-build",
- "serde",
- "tonic",
- "tonic-build",
- "uuid",
-]
 
 [[package]]
 name = "which"
