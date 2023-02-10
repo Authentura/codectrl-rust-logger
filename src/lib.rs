@@ -68,6 +68,7 @@ type LoggerResult<T> = Result<T, LoggerError>;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 enum Warning {
     CompiledWithoutDebugInfo,
+    NoColumnNumberWindows,
 }
 
 impl ToString for Warning {
@@ -75,6 +76,9 @@ impl ToString for Warning {
         match self {
             Self::CompiledWithoutDebugInfo =>
                 "File was compiled without debug info, meaning information was lost",
+            Self::NoColumnNumberWindows =>
+                "File was compiled on Windows, which does not always report column \
+                 numbers",
         }
         .into()
     }
@@ -113,6 +117,10 @@ fn create_log<T: Debug>(
     #[cfg(not(debug_assertions))]
     log.warnings
         .push(Warning::CompiledWithoutDebugInfo.to_string());
+
+    #[cfg(target_os = "windows")]
+    log.warnings
+        .push(Warning::NoColumnNumberWindows.to_string());
 
     let surround = surround.unwrap_or(3);
 
