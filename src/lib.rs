@@ -530,19 +530,30 @@ impl<'a> Logger<'a> {
                     "".into()
                 };
 
-                if let (Some(file_name), Some(line_number), Some(column_number)) =
-                    (symbol.filename(), symbol.lineno(), symbol.colno())
+                if let (Some(file_name), Some(line_number)) =
+                    (symbol.filename(), symbol.lineno())
                 {
-                    let file_path: String = if let Ok(path) = fs::canonicalize(file_name)
+                    let column_number = symbol.colno().unwrap_or_default();
+
+                    let mut file_path: String =
+                        if let Ok(path) = fs::canonicalize(file_name) {
+                            path.as_os_str().to_str().unwrap().to_string()
+                        } else {
+                            file_name.as_os_str().to_str().unwrap().to_string()
+                        };
+
+                    #[cfg(target_os = "windows")]
                     {
-                        path.as_os_str().to_str().unwrap().to_string()
-                    } else {
-                        file_name.as_os_str().to_str().unwrap().to_string()
-                    };
+                        file_path = file_path.replace("\\\\?\\", "");
+                    }
 
                     if !(name.contains("Logger::")
+                        || name.contains("codectrl::Logger")
                         || name.contains("LogBatch::")
+                        || name.contains("codectrl::LogBatch")
+                        || name == "codectrl"
                         || name.ends_with("create_log")
+                        || name.contains("codectrl::create_log")
                         || file_path.contains(".cargo")
                         || file_path.starts_with("/rustc/"))
                         && file_path.contains(".rs")
