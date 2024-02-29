@@ -22,11 +22,11 @@ futures-util = "0.3"
 hashbag = "0.1.9"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0"
-tokio = { version = "1.18", features = ["net", "rt-multi-thread", "io-util"] }
+tokio = { version = "1.20", features = ["net", "rt-multi-thread", "io-util"] }
 tonic = "0.7"
 
 [dev-dependencies]
 anyhow = "1.0"
-tokio = { version = "1.18", features = ["net", "rt-multi-thread", "io-util"] }
+tokio = { version = "1.20", features = ["net", "rt-multi-thread", "io-util"] }
 chrono = "0.4"
 rand = "0.8"
